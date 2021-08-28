@@ -123,7 +123,11 @@ class Ui(QtWidgets.QDialog):
         self.CalculatePButton.setText("Calculation")
 
 
-    def TableFillUp(self, Table, data):
+    def TableFillUp(self, Table, data, TableNo):
+        if TableNo == 1:
+            data.iloc[5:,1] = data.iloc[5:,1].astype(float).round(0).astype(int)
+        if TableNo == 2:
+            data.iloc[4:,1] = data.iloc[4:,1].astype(float).round(0).astype(int)  
         Table.setRowCount(0)
         Table.setColumnCount(data.shape[1])
         Table.setHorizontalHeaderLabels(data.iloc[0])
@@ -181,7 +185,6 @@ class Ui(QtWidgets.QDialog):
         ax.set_ylim(ylim)
         ax.set_title(title,fontsize=14)
 
-        print(self.joinData)
         for x, y, label in zip(self.joinData.centroid.x, self.joinData.centroid.y, self.joinData["THANAME"]):
             ax.annotate(label, xy=(x, y),horizontalalignment='center',fontsize=9)
 
@@ -228,8 +231,7 @@ class Ui(QtWidgets.QDialog):
                 PlanData = pd.read_excel(path + '/Adaptation Deficit_upazila.xlsx',sheet_name='Sheet1')
                 self.tbl1Data = PlanData[PlanData.Upazilla == self.UpazillaName].T.reset_index()
                 self.old_tbl1Data = self.tbl1Data.copy()
-
-                self.TableFillUp(self.Table1 ,self.tbl1Data)
+                self.TableFillUp(self.Table1 ,self.tbl1Data, 1)
 
                 riskData = pd.read_excel(path + '/Risk_calculation_1.xlsx')
                 self.drawMap(riskData, "Present Day Risk Map" + self.ZoneName + "Zone")
@@ -240,13 +242,14 @@ class Ui(QtWidgets.QDialog):
                 PlanData.drop(['Union ','Mouza','THACODE'], axis=1, inplace=True)
                 UzPData = PlanData[PlanData.Upazilla == self.UpazillaName]
                 self.tbl1Data = UzPData[UzPData.Village == self.VillageName].T.reset_index()
-                self.TableFillUp(self.Table1 ,self.tbl1Data)
+                self.TableFillUp(self.Table1 ,self.tbl1Data, 1)
 
                 AutonData = pd.read_excel(path + '/MA&MI_Deficit_for village.xlsx',sheet_name='MI_deficit')
                 AutonData.drop(['Union ','Mouza','THACODE'], axis=1, inplace=True)
                 UzAData = AutonData[AutonData.Upazilla == self.UpazillaName]
                 self.tbl2Data = UzAData[UzAData.Village  == self.VillageName].T.reset_index()
-                self.TableFillUp(self.Table2 ,self.tbl2Data)
+                print(self.tbl2Data)
+                self.TableFillUp(self.Table2 ,self.tbl2Data, 2)
 
         elif sender.text() == 'Re-Calculation':
             if self.LevelName == 'Upazilla':
@@ -263,12 +266,12 @@ class Ui(QtWidgets.QDialog):
                     PlanData = pd.read_excel(path + '/Adaptation Deficit_upazila_after_filling_Safe Drinking water.xlsx',sheet_name='Sheet1')
 
                 self.tbl1Data = PlanData[PlanData.Upazilla == self.UpazillaName].T.reset_index()
-                self.TableFillUp(self.Table1 ,self.tbl1Data)
+                self.TableFillUp(self.Table1 ,self.tbl1Data, 1)
 
                 diff = self.old_tbl1Data.set_index("index").iloc[5:,0] - self.tbl1Data.set_index("index").iloc[5:,0]
                 riskData = self.risk_calulation(self.UpazillaName, path, diff)
 
-                self.drawMap(riskData, "Revised Present Day Risk Map" + self.ZoneName + "Zone")
+                self.drawMap(riskData, "Revised Present Day Risk Map " + self.ZoneName + " Zone")
 
             elif self.LevelName == 'Village':
                 if self.TableNo == 1:
@@ -305,12 +308,13 @@ class Ui(QtWidgets.QDialog):
                 PlanData.drop(['Union ','Mouza','THACODE'], axis=1, inplace=True)
                 UzPData = PlanData[PlanData.Upazilla == self.UpazillaName]
                 self.tbl1Data = UzPData[UzPData.Village == self.VillageName].T.reset_index()
-                self.TableFillUp(self.Table1 ,self.tbl1Data)
+                # self.tbl1Data
+                self.TableFillUp(self.Table1 ,self.tbl1Data, 1)
 
                 AutonData.drop(['Union ','Mouza','THACODE'], axis=1, inplace=True)
                 UzAData = AutonData[AutonData.Upazilla == self.UpazillaName]
                 self.tbl2Data = UzAData[UzAData.Village  == self.VillageName].T.reset_index()
-                self.TableFillUp(self.Table2 ,self.tbl2Data)
+                self.TableFillUp(self.Table2 ,self.tbl2Data, 2)
 
 
 
