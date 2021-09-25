@@ -125,7 +125,7 @@ class Ui(QtWidgets.QDialog):
 
     def TableFillUp(self, Table, data, TableNo):
         if TableNo == 1:
-            data.iloc[5:,1] = data.iloc[5:,1].astype(float).round(0).astype(int)
+            data.iloc[4:,1] = data.iloc[4:,1].astype(float).round(0).astype(int)
         if TableNo == 2:
             data.iloc[4:,1] = data.iloc[4:,1].astype(float).round(0).astype(int)  
         Table.setRowCount(0)
@@ -234,7 +234,7 @@ class Ui(QtWidgets.QDialog):
                 self.TableFillUp(self.Table1 ,self.tbl1Data, 1)
 
                 riskData = pd.read_excel(path + '/Risk_calculation_1.xlsx')
-                self.drawMap(riskData, "Present Day Risk Map" + self.ZoneName + "Zone")
+                self.drawMap(riskData, "Present Day Risk Map " + self.ZoneName + " Zone")
                 
 
             elif self.LevelName == 'Village':
