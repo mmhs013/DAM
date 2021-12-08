@@ -162,7 +162,6 @@ class Ui(QtWidgets.QDialog):
         vul = cp + upz_adp.Sensitivity.values
         rsk = vul * upz_adp.Exposure.values * upz_adp.Hazard.values
         scl_rsk = (rsk - 42160.08267) / (286449.194 - 42160.08267) * 100
-
         df.loc[df.THANAME == upzName, 'Risk'] = scl_rsk
 
         return df
@@ -248,7 +247,6 @@ class Ui(QtWidgets.QDialog):
                 AutonData.drop(['Union ','Mouza','THACODE'], axis=1, inplace=True)
                 UzAData = AutonData[AutonData.Upazilla == self.UpazillaName]
                 self.tbl2Data = UzAData[UzAData.Village  == self.VillageName].T.reset_index()
-                print(self.tbl2Data)
                 self.TableFillUp(self.Table2 ,self.tbl2Data, 2)
 
         elif sender.text() == 'Re-Calculation':
@@ -268,7 +266,10 @@ class Ui(QtWidgets.QDialog):
                 self.tbl1Data = PlanData[PlanData.Upazilla == self.UpazillaName].T.reset_index()
                 self.TableFillUp(self.Table1 ,self.tbl1Data, 1)
 
-                diff = self.old_tbl1Data.set_index("index").iloc[5:,0] - self.tbl1Data.set_index("index").iloc[5:,0]
+                # print(self.old_tbl1Data.set_index("index").iloc[5:,0])
+                # print(self.tbl1Data.set_index("index").iloc[5:,0])
+
+                diff = self.old_tbl1Data.set_index("index").iloc[5:,0].astype(float).round(0).astype(int) - self.tbl1Data.set_index("index").iloc[5:,0]
                 riskData = self.risk_calulation(self.UpazillaName, path, diff)
 
                 self.drawMap(riskData, "Revised Present Day Risk Map " + self.ZoneName + " Zone")
