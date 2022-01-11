@@ -19,6 +19,7 @@ hidden_imports = [
     'pytest',
     'pandas._libs.tslibs.timedeltas',
 	'mapclassify',
+	'scipy'
 	'scipy.special.cython_special',
 	'sklearn',
 	'sklearn.neighbors.typedefs',
