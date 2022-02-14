@@ -32,7 +32,9 @@ class Ui(QtWidgets.QDialog):
         self.int_input = pd.read_excel(self.DataDir + "/Hazards/Salinity/Initial_input.xlsx", sheet_name="Initial_input", index_col="THACODE")
         self.BN_wt = pd.read_excel(self.DataDir + "/Hazards/Salinity/Initial_input.xlsx", sheet_name="BN_Weight", index_col="Adaptation_Indicator")
         self.Autonomas_Weight = pd.read_excel(self.DataDir + "For_Risk.xlsx",sheet_name="Autonomas_Weight",index_col="Planned")
-
+        
+        self.adp_need = self.adp_need.round(2)
+        self.actual_adp = self.actual_adp.round(2)
 
         self.ImView.setScaledContents(True)
         self.ImView.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
@@ -133,11 +135,13 @@ class Ui(QtWidgets.QDialog):
 
     def TableFillUp(self, Table, data, TableNo):
         if TableNo == 1:
-            data.iloc[4:,1:] = data.iloc[4:,1:].astype(float).round(0).astype(int)
+            
             if self.LevelName == 'Upazilla':
+                data.iloc[4:,1:] = data.iloc[4:,1:].astype(float).round(0).astype(int)
                 fix_row = 4
             elif self.LevelName == 'Village':
-                fix_row = 3
+                data.iloc[5:,1:] = data.iloc[5:,1:].astype(float).round(0).astype(int)
+                fix_row = 4
 
         if TableNo == 2:
             data.iloc[1:,1] = data.iloc[1:,1].astype(float).round(0).astype(int)
@@ -234,96 +238,139 @@ class Ui(QtWidgets.QDialog):
             copyfile(self.FilePath, newfilePath)
 
 
-    def optimization(self, path, i, ind, adp_need):
-        constraint_01 = pd.read_excel(path + "/Constraints.xlsx",sheet_name="Constraint_01",index_col="Indicators",skiprows=1)
-        constraint_02 = pd.read_excel(path + "/Constraints.xlsx",sheet_name="Constraint_02",index_col="Indicators",skiprows=1)
-        Lower_Bound = pd.read_excel(path + "/Constraints.xlsx",sheet_name="Lower_bound",index_col="Indicators",skiprows=1)
-        Upper_Bound = pd.read_excel(path + "/Constraints.xlsx",sheet_name="Upper_bound",index_col="Indicators",skiprows=1)
-        Upper_Bound = Upper_Bound.astype(float)
-
-        adp_upz = adp_need.loc[i,:].copy()
-
-        cons1 = constraint_01.loc[ind,:]
-        cons2 = constraint_02.loc[ind,:]
-
-        init = np.zeros(20)
-        lower_b = Lower_Bound.loc[ind,:]
-        upper_b = Upper_Bound.loc[ind,:]
-        lower_b[lower_b == -1] = adp_upz.loc[(lower_b == -1).to_numpy()[4:19]].to_numpy()
-        upper_b[upper_b == -1] = adp_upz.loc[(upper_b == -1).to_numpy()[4:19]].to_numpy()
+    def village_adp_calc(self, up_data, a):
+        nn = len(up_data.Weight)
+        init = np.zeros(nn)
+        lower_b = np.zeros(nn)
+        upper_b = np.ones(nn) * 100
         bound = tuple(zip(lower_b, upper_b))
 
-        coeff = cons1.iloc[4:19].copy()
-        coeff[adp_upz.index == ind] = 0
-        coeff2 = cons2.iloc[4:19].copy()
-        coeff2[adp_upz.index == ind] = 0
+        for nm in range(len(self.adp_name)):
+            
+            def vill_obj(x):
+                s = up_data[self.adp_name[nm]].iloc[0]
+                for i in range(nn):
+                    s = s - x[i] * up_data.Weight[i]
+                return s**2
+
+            cons_eq = []
+            for idx in range(nn):
+                cons_eq.append({'type': 'ineq', 'fun': lambda x, idx=idx: x[idx] - a[idx]})
+
+            solution = minimize(vill_obj, init, method='SLSQP', bounds=bound, constraints=cons_eq)
+
+            up_data.loc[:, self.adp_name[nm]] = solution.x
+            
+        return up_data
+
+
+
+    def optimization(self, i, ind, adp_idn, adp_need):
+
+        init = np.zeros(20)
+        lower_b = np.zeros(20)
+        lower_b[4:19] = np.ones(15) * 0.001
+
+        upper_b = np.ones(20)
+        upper_b[4:19] = self.adp_need.loc[i,:].to_numpy()
+        upper_b[[10,14,17,19]] = np.ones(4)
+        bound = tuple(zip(lower_b, upper_b))
+
+        adp_upz = adp_need.loc[i,:].copy()
 
         a = [self.int_input.loc[i,:].Exposure * self.int_input.loc[i,:].Hazard,
             self.int_input.loc[i,:].Exposure,
             self.int_input.loc[i,:].Sensitivity,
-            self.int_input.loc[i,:].Exposure + self.int_input.loc[i,:].Sensitivity]
+            0.13 * self.int_input.loc[i,:].Exposure + 0.87 * self.int_input.loc[i,:].Sensitivity]
         a.extend(list(adp_upz))
         a.append(self.int_input.loc[i,:].Hazard)
 
         Objective = lambda x: x[0]*x[19]*((0.0548*x[1]+0.358*x[2]+0.587*x[3])-(0.077*x[4]+0.075*x[5]+0.05*x[6]+0.0588*x[7]+0.0569*x[8]+0.0283*x[9]
                             +0.0467*x[10]+0.0449*x[11]+0.0366*x[12]+0.0266*x[13]+0.0352*x[14]+0.06*x[15]+0.0523*x[16]+0.0487*x[17]+0.302*x[18]))
 
-        ineq1 = lambda x: (cons1.x0*x[0] + cons1.x1*x[1] + cons1.x2*x[2] + cons1.x3*x[3] + cons1.x4*x[4] + cons1.x5*x[5] + cons1.x6*x[6] +
-                cons1.x7*x[7] + cons1.x8*x[8] + cons1.x9*x[9] + cons1.x10*x[10] + cons1.x11*x[11] + cons1.x12*x[12] + cons1.x13*x[13] +
-                cons1.x14*x[14] + cons1.x15*x[15] + cons1.x16*x[16] + cons1.x17*x[17] + cons1.x18*x[18] + cons1.x19*x[19])
+        ineq1 = lambda x: a[2] - (0.0548 * x[1] + 0.358 * x[2] + 0.587 * x[3])
+        ineq2 = lambda x: 0.56 * x[5] + 0.44 * x[7]
+        ineq3 = lambda x: 0.51 * x[4] + 0.49 * x[5]
+        ineq4 = lambda x: 0.17 * x[4] + 0.16 * x[5] - 0.665 * x[18]
+        ineq5 = lambda x: 0.138 * x[5] + 0.092 * x[6]  + 0.108 * x[7] + 0.1047 * x[8] + 0.556 * x[18]
+        ineq6 = lambda x: 0.147 * x[8] + 0.073 * x[9] + 0.78 * x[18]
+        ineq7 = lambda x: 0.725 * x[5] + 0.274 * x[9]
+        ineq8 = lambda x: -0.1176 * x[11] *0.092 * x[14] + 0.79 * x[18]
+        ineq9 = lambda x: 0.117 * x[4] + 0.113 * x[5] + 0.089 * x[7] + 0.086 * x[8] + 0.0556 * x[12] + 0.0794 * x[16]+ 0.458 * x[18]
+        ineq10 = lambda x: 0.099 * x[4] + 0.096 * x[5] + 0.0644 * x[6] + 0.075 * x[7]  + 0.073 * x[8] + 0.058 * x[11] + 0.0341 * x[13] + 0.0451 * x[14] + 0.067 * x[16] + 0.387 * x[18]
+        ineq11 = lambda x: 0.123 * x[4] + 0.119 * x[5] + 0.0933 * x[7] + 0.09 * x[8] + 0.0955 * x[15] + 0.479 * x[18]
+        ineq12 = lambda x: 0.59 * x[5] + 0.41 * x[16]
+        ineq13 = lambda x: 0.127 * x[4] + 0.123 * x[5] + 0.097 * x[7] + 0.093 * x[9] + 0.06 * x[13] + 0.5 * x[18]
 
-        # ineq2 = lambda x: (cons2.x0*x[0] + cons2.x1*x[1] + cons2.x2*x[2] + cons2.x3*x[3] + cons2.x4*x[4] + cons2.x5*x[5] + cons2.x6*x[6] +
-        #         cons2.x7*x[7] + cons2.x8*x[8] + cons2.x9*x[9] + cons2.x10*x[10] + cons2.x11*x[11] + cons2.x12*x[12] + cons2.x13*x[13] +
-        #         cons2.x14*x[14] + cons2.x15*x[15] + cons2.x16*x[16] + cons2.x17*x[17] + cons2.x18*x[18] + cons2.x19*x[19])
-
-        ineq2 = lambda x: 0.0548 * x[1] + 0.358 * x[2] + 0.587 * x[3] - a[2]
-
-        eq1 = NonlinearConstraint(lambda x: x[0] * x[19] - a[0], 0, 0)
+        eq1 = lambda x: (x[0] * x[19]) - a[0]
         eq2 = lambda x: x[0] - a[1]
-        
-        eq3 = lambda x: x[0] + 0.0548 * x[1] + 0.358 * x[2] + 0.587 * x[3] - a[3]
-        eq4 = lambda x: x[19] - a[19]
+        eq3 = lambda x: 0.13 * x[0] + 0.379 * x[1] + 0.328 * x[2] + 0.504 * x[3] - a[3]
+        eq4 = lambda x: x[10] - a[10]
+        eq5 = lambda x: x[14] - a[14]
+        eq6 = lambda x: x[17] - a[17]
+        eq7 = lambda x: x[19] - a[19]
 
-        cons_eq = [{'type': 'ineq', 'fun': ineq1},
-                {'type': 'ineq', 'fun': ineq2},
-                eq1,
-                {'type': 'eq', 'fun': eq2},
-                {'type': 'eq', 'fun': eq3},
-                {'type': 'eq', 'fun': eq4},
-                # {'type': 'eq', 'fun': eq5}
-                ]
 
-        for idx in range(4,19):
-            if (coeff[idx-4] == 0):
-                cons_eq.append({'type': 'eq', 'fun': lambda x, idx=idx: x[idx] - a[idx]})
+        cons_eq = [
+            {'type': 'ineq', 'fun': ineq1},
+            {'type': 'ineq', 'fun': ineq2},
+            {'type': 'ineq', 'fun': ineq3},
+            {'type': 'ineq', 'fun': ineq4},
+            {'type': 'ineq', 'fun': ineq5},
+            {'type': 'ineq', 'fun': ineq6},
+            {'type': 'ineq', 'fun': ineq7},
+            {'type': 'ineq', 'fun': ineq8},
+            {'type': 'ineq', 'fun': ineq9},
+            {'type': 'ineq', 'fun': ineq10},
+            {'type': 'ineq', 'fun': ineq11},
+            {'type': 'ineq', 'fun': ineq12},
+            {'type': 'ineq', 'fun': ineq13},
+            NonlinearConstraint(eq1, 0, 0),
+            NonlinearConstraint(eq2, 0, 0),
+            NonlinearConstraint(eq3, 0, 0),
+            NonlinearConstraint(eq4, 0, 0),
+            NonlinearConstraint(eq5, 0, 0),
+            NonlinearConstraint(eq6, 0, 0),
+            NonlinearConstraint(eq7, 0, 0),
+        ]
+
+        for idx in set(adp_idn):
+            cons_eq.append({'type': 'eq', 'fun': lambda x, idx=idx: x[idx] - a[idx]})
 
         solution = minimize(Objective, init, method='trust-constr', bounds=bound, constraints=cons_eq)
         
-        return solution.x[4:19]
+        return np.round(solution.x[4:19], 2)
 
 
     def Action(self):
         sender = self.sender()
 
-        path = self.DataDir + '/Hazards/' + self.HazardName
+        # path = self.DataDir + '/Hazards/' + self.HazardName
 
         
         if sender.text() == 'Calculation':
             # PlanData = pd.read_excel(path + '/Adaptation Deficit_upazila.xlsx',sheet_name='Sheet1')
-            self.deficiet = (self.adp_need - self.actual_adp) * 100
-            self.deficiet[self.deficiet < 0] = 0
-            self.new_adp = self.adp_need.copy()
+
+
+            self.Th_id = self.StudyArea[self.StudyArea.Upazilla == self.UpazillaName].THACODE.iloc[0]
 
             if self.LevelName == 'Upazilla':
+                self.adp_idn = []
+                self.deficiet = (self.adp_need - self.actual_adp) * 100
+                self.deficiet[self.deficiet < 0] = 0
+                self.new_adp_need = self.adp_need.copy()
+                self.new_actual_adp = self.actual_adp.copy()
+                self.adp_name = self.adp_need.columns
+
                 PlanData = self.JoinData(self.deficiet)
                 PlanData.insert(0, "Adaptation", "Deficiency")
                 PlanData.insert(4, "Risk", 0)
                 self.tbl1Data = PlanData[PlanData.Upazilla == self.UpazillaName].T.reset_index()
                 # self.old_tbl1Data = self.tbl1Data.copy()
  
-                self.Th_id = self.StudyArea_Up_Zone[self.StudyArea_Up_Zone.Upazilla == self.UpazillaName].index[0]
+                
 
-                riskData = self.JoinData(self.risk_calulation(self.actual_adp))
+                riskData = self.JoinData(self.risk_calulation(self.new_actual_adp))
 
                 self.tbl1Data.loc[self.tbl1Data.iloc[:,0] == 'Risk', self.tbl1Data.columns[-1]] = riskData.loc[self.Th_id,'Risk']
 
@@ -337,28 +384,17 @@ class Ui(QtWidgets.QDialog):
                 count = self.deficiet_vill.groupby('THACODE').count()['Upazilla']
                 count.name = 'Count'
                 self.deficiet_vill = self.deficiet_vill.join(count,on="THACODE")
-
-                self.deficiet_vill.iloc[:,8:] = self.deficiet_vill.iloc[:,8:].multiply(self.deficiet_vill["Weight"], axis="index").multiply(self.deficiet_vill["Count"], axis="index")
-
-                self.deficiet_temp = self.deficiet_vill.loc[(self.deficiet_vill.Upazilla == self.UpazillaName) & (self.deficiet_vill.Village == self.VillageName)].T
-                self.old_tbl1Data_vill = self.deficiet_temp.drop(['Union', 'THACODE','Mouza','Weight','Count'], axis=0).reset_index()
-                self.TableFillUp(self.Table1 ,self.old_tbl1Data_vill, 1)
-                # print(self.deficiet_vill)
                 
+                self.village_data = self.deficiet_vill[self.deficiet_vill.THACODE == self.Th_id]
+                # self.village_data = self.village_adp_calc(self.village_data, np.zeros(len(self.village_data)))
 
+                self.tbl1Data = self.village_data[self.village_data.Village == self.VillageName]
+                self.tbl1Data.insert(0, "Adaptation", "Deficiency")
+                self.old_tbl1Data_vill = self.tbl1Data.drop(['Union', 'THACODE','Mouza','Weight','Count'], axis=1).T.reset_index()
+                
+                # print(self.old_tbl1Data_vill)
+                self.TableFillUp(self.Table1 ,self.old_tbl1Data_vill, 1)
 
-                auto_deficiet = self.deficiet_temp.join(self.Autonomas_Weight)
-                auto_deficiet.iloc[:,-1] = auto_deficiet.iloc[:,0] * auto_deficiet.iloc[:,-1]
-                auto_deficiet.insert(0, "Adaptation", "Deficiency")
-                auto_deficiet.drop(['District', 'Mouza', 'THACODE', 'Union','Village','Upazilla','Weight','Zone','Count'], axis=0, inplace=True)
-                auto_deficiet = auto_deficiet.reset_index()
-                self.old_tbl2Data_vill = auto_deficiet.iloc[:,-2:]
-                self.old_tbl2Data_vill.loc[-1] = ["Adaptation", "Deficiency"]
-                self.old_tbl2Data_vill.index = self.old_tbl2Data_vill.index + 1
-                self.old_tbl2Data_vill = self.old_tbl2Data_vill.sort_index()
-                self.old_tbl2Data_vill.T.insert(0, "Adaptation", "Deficiency")
-
-                self.TableFillUp(self.Table2 ,self.old_tbl2Data_vill, 2)
 
                 riskData = self.JoinData(self.risk_calulation(self.actual_adp))
                 self.drawMap(riskData, "Present Day Risk Map " + self.ZoneName + " Zone")
@@ -370,16 +406,19 @@ class Ui(QtWidgets.QDialog):
 
                 self.new_tbl1Data = self.old_tbl1Data.iloc[:,[0,-1]].copy()
                 new_value = self.new_tbl1Data.iloc[self.rowLoc+1, 1] - int(self.Table1.item(self.rowLoc, self.colLoc).text())
-                Temp_adp = self.new_adp.loc[self.Th_id,:].copy()
-                self.new_adp.loc[self.Th_id, self.ind] = self.new_adp.loc[self.Th_id, self.ind] - new_value/100
+                Temp_adp = self.new_adp_need.loc[self.Th_id,:].copy()
 
-                optimized_res = self.optimization(path, self.Th_id, self.ind, self.new_adp)
+                self.new_adp_need.loc[self.Th_id, self.ind] = self.new_adp_need.loc[self.Th_id, self.ind] - new_value/100
+                self.adp_idn.append(self.rowLoc)
+
+                optimized_res = self.optimization(self.Th_id, self.ind, self.adp_idn, self.new_adp_need)
+
                 
-                self.new_adp.loc[self.Th_id,:] = optimized_res
-                self.new_actual_adp = self.actual_adp.copy()
-                self.new_actual_adp.loc[self.Th_id,:] = self.actual_adp.loc[self.Th_id,:] + Temp_adp - optimized_res
+                self.new_adp_need.loc[self.Th_id,:] = optimized_res
                 
-                self.deficiet = (self.new_adp - self.actual_adp) * 100
+                self.new_actual_adp.loc[self.Th_id,:] = self.new_actual_adp.loc[self.Th_id,:] + Temp_adp - optimized_res
+                
+                self.deficiet = (self.new_adp_need - self.actual_adp) * 100
                 self.deficiet[self.deficiet < 0] = 0
 
                 self.new_tbl1Data = self.JoinData(self.deficiet)
@@ -400,12 +439,45 @@ class Ui(QtWidgets.QDialog):
             elif self.LevelName == 'Village':
                 if self.TableNo == 1:
                     self.ind = self.Table1.item(self.rowLoc, 0).text()
-                    self.deficiet_vill.loc[(self.deficiet_vill.Upazilla == self.UpazillaName) & (self.deficiet_vill.Village == self.VillageName),self.ind] = int(self.Table1.item(self.rowLoc, self.colLoc).text())
-                    # deficiet_vill.groupby(deficiet_vill.THACODE).sum()
 
-                    # self.new_tbl1Data = self.old_tbl1Data.iloc[:,[0,-1]].copy()
-                    # new_value = self.new_tbl1Data.iloc[self.rowLoc+1, 1] - int(self.Table1.item(self.rowLoc, self.colLoc).text())
-                    # Temp_adp = self.new_adp.loc[self.Th_id,:].copy()
+                    self.village_data.loc[(self.village_data.Village == self.VillageName), self.ind] = int(self.Table1.item(self.rowLoc, self.colLoc).text())
+                    old_vill_ind_data = self.village_data.loc[:, self.ind]
+                    self.village_data.iloc[:,8:] = self.village_data.iloc[:,8:].multiply(self.village_data["Weight"], axis="index")
+                    new_value = self.deficiet.loc[self.deficiet.index == self.Th_id, self.ind] - self.village_data.groupby(self.village_data.THACODE).sum()[self.ind]
+                                      
+                    # same as upazilla re-calculation
+                    Temp_adp = self.new_adp_need.loc[self.Th_id,:].copy()
+                    self.new_adp_need.loc[self.Th_id, self.ind] = self.new_adp_need.loc[self.Th_id, self.ind] - new_value.values[0]/100
+
+                    # optimized_res = self.optimization(self.Th_id, self.ind, [], self.new_adp_need)
+                    
+                    self.new_adp_need.loc[self.Th_id,:] = optimized_res
+                    self.new_actual_adp = self.actual_adp.copy()
+                    self.new_actual_adp.loc[self.Th_id,:] = self.actual_adp.loc[self.Th_id,:] + Temp_adp - optimized_res
+                    
+                    self.deficiet = (self.new_adp_need - self.actual_adp) * 100
+                    self.deficiet[self.deficiet < 0] = 0
+
+                    # same village calculation
+                    self.deficiet_vill = self.StudyArea.join(self.deficiet, on="THACODE")
+                    count = self.deficiet_vill.groupby('THACODE').count()['Upazilla']
+                    count.name = 'Count'
+                    self.deficiet_vill = self.deficiet_vill.join(count,on="THACODE")
+                    
+                    self.village_data = self.deficiet_vill[self.deficiet_vill.THACODE == self.Th_id]
+                    # self.village_data = self.village_adp_calc(self.village_data, np.zeros(len(self.village_data)))
+
+                    self.village_data.loc[:, self.ind] = old_vill_ind_data
+
+                    self.tbl1Data = self.village_data[self.village_data.Village == self.VillageName]
+                    self.tbl1Data.insert(0, "Adaptation", "Deficiency")
+                    self.new_tbl1Data = self.tbl1Data.drop(['Union', 'THACODE','Mouza','Weight','Count'], axis=1).T.reset_index()
+                    self.old_tbl1Data_vill = self.old_tbl1Data_vill.set_index("index").join(self.new_tbl1Data.set_index("index"), lsuffix='_left', rsuffix='_right').reset_index()
+
+                    self.TableFillUp(self.Table1 ,self.old_tbl1Data_vill, 1)
+                    
+                    
+
 
 
                 # if self.TableNo == 1:
