@@ -29,7 +29,6 @@ Climate Resilience and National Resilience programs are focusing to formulate th
 - [Hamima Huma](https://www.researchgate.net/profile/Hamima-Huma)
 - Kamrun Nahar
 - Sabrina Akther
-- Md Shibbir Ahmed
 
 
 ### Supervisor
