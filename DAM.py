@@ -31,7 +31,7 @@ class Ui(QtWidgets.QDialog):
         self.actual_adp = pd.read_excel(self.DataDir + "/Hazards/Salinity/Actual_Adaptation.xlsx",sheet_name="Actual_adp",index_col="THACODE")
         self.int_input = pd.read_excel(self.DataDir + "/Hazards/Salinity/Initial_input.xlsx", sheet_name="Initial_input", index_col="THACODE")
         self.BN_wt = pd.read_excel(self.DataDir + "/Hazards/Salinity/Initial_input.xlsx", sheet_name="BN_Weight", index_col="Adaptation_Indicator")
-        self.Autonomas_Weight = pd.read_excel(self.DataDir + "For_Risk.xlsx",sheet_name="Autonomas_Weight",index_col="Planned")
+        # self.Autonomas_Weight = pd.read_excel(self.DataDir + "For_Risk.xlsx",sheet_name="Autonomas_Weight",index_col="Planned")
         
         self.adp_need = self.adp_need.round(2)
         self.actual_adp = self.actual_adp.round(2)
@@ -267,16 +267,16 @@ class Ui(QtWidgets.QDialog):
 
     def optimization(self, i, ind, adp_idn, adp_need):
 
-        init = np.zeros(20)
-        lower_b = np.zeros(20)
-        lower_b[4:19] = np.ones(15) * 0.001
+        init = np.zeros(55)
+        lower_b = np.zeros(55)
+        lower_b[4:54] = np.ones(50) * 0.001
 
-        upper_b = np.ones(20)
-        upper_b[4:19] = self.adp_need.loc[i,:].to_numpy()
-        upper_b[[10,14,17,19]] = np.ones(4)
+        upper_b = np.ones(55)
+        upper_b[4:54] = adp_need.loc[i,:].to_numpy()
+        upper_b[[24,33,34,35,43,44,45,46]] = np.ones(8)
         bound = tuple(zip(lower_b, upper_b))
 
-        adp_upz = adp_need.loc[i,:].copy()
+        adp_upz = adp_need.loc[i,:].to_numpy().copy()
 
         a = [self.int_input.loc[i,:].Exposure * self.int_input.loc[i,:].Hazard,
             self.int_input.loc[i,:].Exposure,
@@ -285,30 +285,53 @@ class Ui(QtWidgets.QDialog):
         a.extend(list(adp_upz))
         a.append(self.int_input.loc[i,:].Hazard)
 
-        Objective = lambda x: x[0]*x[19]*((0.0548*x[1]+0.358*x[2]+0.587*x[3])-(0.077*x[4]+0.075*x[5]+0.05*x[6]+0.0588*x[7]+0.0569*x[8]+0.0283*x[9]
-                            +0.0467*x[10]+0.0449*x[11]+0.0366*x[12]+0.0266*x[13]+0.0352*x[14]+0.06*x[15]+0.0523*x[16]+0.0487*x[17]+0.302*x[18]))
+        Objective = lambda x: x[0]*x[54]*((0.0548*x[1]+0.358*x[2]+0.587*x[3])
+                          -(0.077*(0.2*x[4]+0.34*x[5]+0.006*x[6]+0.455*x[7])
+                          +0.075*(0.367*x[8]+0.2*x[9]+0.343*x[10]+0.092*x[11])
+                          +0.05*x[12]
+                          +0.0588*(0*x[13]+0*x[14]+0.63*x[15]+0*x[16]+0.365*x[17]+0*x[18]+0*x[19])
+                          +0.0569*(0.92*x[20]+0.071*x[21]+0*x[22])
+                          +0.0283*x[23]
+                          +0.0467*x[24]
+                          +0.0449*(0.76*x[25]+0.24*x[26])
+                          +0.0366*(0.018*x[27]+0.024*x[28]+0.726*x[29]+0.23*x[30])
+                          +0.0266*(0.227*x[31]+0.77*x[32])
+                          +0.0352*(0*x[33]+0*x[34]+x[35])
+                          +0.06*(0.346*x[36]+0.653*x[37])
+                          +0.0523*(0*x[38]+0*x[39]+0.103*x[40]+0.9*x[41]+0*x[42])
+                          +0.0487*(0.13*x[43]+0.135*x[44]+0.082*x[45]+0.653*x[46])
+                          +0.302*(0.207*x[47]+0.154*x[48]+0.23*x[49]+0.0762*x[50]+0.00071*x[51]+0.19*x[52]+0.14*x[53])))
 
         ineq1 = lambda x: a[2] - (0.0548 * x[1] + 0.358 * x[2] + 0.587 * x[3])
-        ineq2 = lambda x: 0.56 * x[5] + 0.44 * x[7]
-        ineq3 = lambda x: 0.51 * x[4] + 0.49 * x[5]
-        ineq4 = lambda x: 0.17 * x[4] + 0.16 * x[5] - 0.665 * x[18]
-        ineq5 = lambda x: 0.138 * x[5] + 0.092 * x[6]  + 0.108 * x[7] + 0.1047 * x[8] + 0.556 * x[18]
-        ineq6 = lambda x: 0.147 * x[8] + 0.073 * x[9] + 0.78 * x[18]
-        ineq7 = lambda x: 0.725 * x[5] + 0.274 * x[9]
-        ineq8 = lambda x: -0.1176 * x[11] *0.092 * x[14] + 0.79 * x[18]
-        ineq9 = lambda x: 0.117 * x[4] + 0.113 * x[5] + 0.089 * x[7] + 0.086 * x[8] + 0.0556 * x[12] + 0.0794 * x[16]+ 0.458 * x[18]
-        ineq10 = lambda x: 0.099 * x[4] + 0.096 * x[5] + 0.0644 * x[6] + 0.075 * x[7]  + 0.073 * x[8] + 0.058 * x[11] + 0.0341 * x[13] + 0.0451 * x[14] + 0.067 * x[16] + 0.387 * x[18]
-        ineq11 = lambda x: 0.123 * x[4] + 0.119 * x[5] + 0.0933 * x[7] + 0.09 * x[8] + 0.0955 * x[15] + 0.479 * x[18]
-        ineq12 = lambda x: 0.59 * x[5] + 0.41 * x[16]
-        ineq13 = lambda x: 0.127 * x[4] + 0.123 * x[5] + 0.097 * x[7] + 0.093 * x[9] + 0.06 * x[13] + 0.5 * x[18]
+        ineq2 = lambda x: 0.1 * x[4] + 0.17 * x[5] + 0.23 * x[7] + 0.18 * x[8] + 0.1 * x[9] + 0.17 * x[10] + 0.05 * x[11]
+        ineq3 = lambda x: 0.03 * x[4] + 0.06 * x[5] + 0.08 * x[7] + 0.06 * x[8] + 0.03 * x[9] + 0.05 * x[10] + 0.01 * x[11] + 0.14 * x[47] + 0.1 * x[48] + 0.15 * x[49] + 0.05 * x[50] + 0.13 * x[52] + 0.09 * x[53]
+        ineq4 = lambda x: 0.05*x[8] + 0.03*x[9] + 0.05*x[10] + 0.01*x[11] + 0.09*x[12] + 0.07*x[15] + 0.04*x[17] + 0.1*x[20] + 0.01*x[21] + 0.12*x[47] + 0.09*x[48] + 0.13*x[49] + 0.04*x[50] + 0.11*x[52] + 0.08*x[53]
+        ineq5 = lambda x: 0.21*x[8] + 0.11*x[9] + 0.19*x[10] + 0.05*x[11] + 0.28*x[15] + 0.16*x[17]
+        ineq6 = lambda x: 0.14*x[20] + 0.01*x[21] + 0.07*x[23] + 0.16*x[47] + 0.12*x[48] + 0.18*x[49] + 0.06*x[50] + 0.15*x[52] + 0.11*x[53]
+        ineq7 = lambda x: 0.27*x[8] + 0.14*x[9] + 0.25*x[10] + 0.07*x[11] + 0.27*x[23]
+        # ineq8 = lambda x: x[24]
+        ineq9 = lambda x: 0.09*x[25] + 0.03*x[26] + 0.09*x[35] + 0.16*x[47] + 0.12*x[48] + 0.18*x[49] + 0.06*x[50] + 0.15*x[52] + 0.11*x[53]
+        ineq10 = lambda x: 0.02*x[4] + 0.04*x[5] + 0.05*x[7] + 0.04*x[8] + 0.02*x[9] + 0.04*x[10] + 0.01*x[11] + 0.06*x[15] + 0.03*x[17] + 0.08*x[20] + 0.01*x[21] + 0.04*x[29] + 0.01*x[30] + 0.01*x[40] + 0.07*x[41] + 0.1*x[47] + 0.07*x[48] + 0.11*x[49] + 0.03*x[50] + 0.09*x[52] + 0.06*x[53]
+        ineq11 = lambda x: 0.02*x[9] + 0.03*x[10] + 0.01*x[11] + 0.06*x[12] + 0.05*x[15] + 0.03*x[17] + 0.07*x[20] + 0.01*x[21] + 0.04*x[25] + 0.01*x[26] + 0.01*x[31] + 0.03*x[32] + 0.05*x[35] + 0.01*x[40] + 0.06*x[41] + 0.08*x[47] + 0.06*x[48] + 0.09*x[49] + 0.03*x[50] + 0.07*x[52] + 0.05*x[53]
+        # ineq12 = lambda x: x[35]
+        ineq13 = lambda x: 0.06*x[15] + 0.03*x[17] + 0.08*x[20] + 0.01*x[21] + 0.03*x[36] + 0.06*x[37] + 0.1*x[47] + 0.07*x[48] + 0.11*x[49] + 0.04*x[50] + 0.09*x[52] + 0.07*x[53]
+        ineq14 = lambda x: 0.22*x[8] + 0.12*x[9] + 0.2*x[10] + 0.05*x[11] + 0.04*x[40] + 0.37*x[41]
+        ineq15 = lambda x: 0.13*x[43] + 0.14*x[44] + 0.08*x[45] + 0.65*x[46]
+        ineq16 = lambda x: 0.03*x[4] + 0.04*x[5] + 0.06*x[7] + 0.05*x[8] + 0.02*x[9] + 0.04*x[10] + 0.01*x[11] + 0.06*x[15] + 0.04*x[17] + 0.09*x[20] + 0.01*x[21] + 0.04*x[29] + 0.01*x[30] + 0.1*x[47] + 0.08*x[48] + 0.12*x[49] + 0.04*x[50] + 0.1*x[52] + 0.07*x[53]
 
-        eq1 = lambda x: (x[0] * x[19]) - a[0]
+
+        eq1 = lambda x: (x[0] * x[54]) - a[0]
         eq2 = lambda x: x[0] - a[1]
-        eq3 = lambda x: 0.13 * x[0] + 0.379 * x[1] + 0.328 * x[2] + 0.504 * x[3] - a[3]
-        eq4 = lambda x: x[10] - a[10]
-        eq5 = lambda x: x[14] - a[14]
-        eq6 = lambda x: x[17] - a[17]
-        eq7 = lambda x: x[19] - a[19]
+        # eq3 = lambda x: (0.13*x[43]+0.135*x[44]+0.082*x[45]+0.653*x[46]) - a[1]
+        eq4 = lambda x: 0.13 * x[0] + 0.379 * x[1] + 0.328 * x[2] + 0.504 * x[3] - a[3]
+        eq5 = lambda x: x[24] - a[24]
+        eq6 = lambda x: x[33] - a[33]
+        eq7 = lambda x: x[34] - a[34]
+        eq8 = lambda x: x[35] - a[35]
+        eq9 = lambda x: x[43] - a[43]
+        eq10 = lambda x: x[44] - a[44]
+        eq11 = lambda x: x[45] - a[45]
+        eq12 = lambda x: x[46] - a[46]
 
 
         cons_eq = [
@@ -319,27 +342,35 @@ class Ui(QtWidgets.QDialog):
             {'type': 'ineq', 'fun': ineq5},
             {'type': 'ineq', 'fun': ineq6},
             {'type': 'ineq', 'fun': ineq7},
-            {'type': 'ineq', 'fun': ineq8},
+            # {'type': 'ineq', 'fun': ineq8},
             {'type': 'ineq', 'fun': ineq9},
             {'type': 'ineq', 'fun': ineq10},
             {'type': 'ineq', 'fun': ineq11},
-            {'type': 'ineq', 'fun': ineq12},
+            # {'type': 'ineq', 'fun': ineq12},
             {'type': 'ineq', 'fun': ineq13},
+            {'type': 'ineq', 'fun': ineq14},
+            {'type': 'ineq', 'fun': ineq15},
+            {'type': 'ineq', 'fun': ineq16},
             NonlinearConstraint(eq1, 0, 0),
             NonlinearConstraint(eq2, 0, 0),
-            NonlinearConstraint(eq3, 0, 0),
+            # NonlinearConstraint(eq3, 0, 0),
             NonlinearConstraint(eq4, 0, 0),
             NonlinearConstraint(eq5, 0, 0),
             NonlinearConstraint(eq6, 0, 0),
             NonlinearConstraint(eq7, 0, 0),
+            NonlinearConstraint(eq8, 0, 0),
+            NonlinearConstraint(eq9, 0, 0),
+            NonlinearConstraint(eq10, 0, 0),
+            NonlinearConstraint(eq11, 0, 0),
+            NonlinearConstraint(eq12, 0, 0),
         ]
 
         for idx in set(adp_idn):
             cons_eq.append({'type': 'eq', 'fun': lambda x, idx=idx: x[idx] - a[idx]})
 
-        solution = minimize(Objective, init, method='trust-constr', bounds=bound, constraints=cons_eq)
+        solution = minimize(Objective, init, method='trust-constr', bounds=bound, constraints=cons_eq, tol=0.00001)
         
-        return np.round(solution.x[4:19], 2)
+        return np.round(solution.x[4:54], 2)
 
 
     def Action(self):
@@ -413,9 +444,8 @@ class Ui(QtWidgets.QDialog):
 
                 optimized_res = self.optimization(self.Th_id, self.ind, self.adp_idn, self.new_adp_need)
 
-                
                 self.new_adp_need.loc[self.Th_id,:] = optimized_res
-                
+
                 self.new_actual_adp.loc[self.Th_id,:] = self.new_actual_adp.loc[self.Th_id,:] + Temp_adp - optimized_res
                 
                 self.deficiet = (self.new_adp_need - self.actual_adp) * 100
